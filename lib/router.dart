@@ -1,47 +1,67 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
-import '../models/models.dart';
-import '../screens/shared/login_screen.dart';
-import '../screens/shared/splash_screen.dart';
-import '../screens/trainer/trainer_shell.dart';
-import '../screens/trainer/dashboard_screen.dart';
-import '../screens/trainer/students_screen.dart';
-import '../screens/trainer/student_detail_screen.dart';
-import '../screens/trainer/new_workout_screen.dart';
-import '../screens/trainer/trainer_workout_library_screen.dart';
-import '../screens/trainer/ai_workout_screen.dart';
-import '../screens/trainer/trainer_chat_screen.dart';
-import '../screens/trainer/agenda_screen.dart';
-import '../screens/trainer/wearable_live_screen.dart';
-import '../screens/trainer/financial_screen.dart';
-import '../screens/shared/anamnese_screen.dart';
-import '../screens/shared/notifications_screen.dart';
-import '../screens/shared/profile_screen.dart';
-import '../screens/student/student_shell.dart';
-import '../screens/student/checkin_screen.dart';
-import '../screens/student/today_workout_screen.dart';
-import '../screens/student/exercise_execution_screen.dart';
-import '../screens/student/student_chat_screen.dart';
-import '../screens/student/progress_screen.dart';
-import '../screens/student/community_screen.dart';
-import '../screens/student/measurements_screen.dart';
-import '../screens/student/workout_history_screen.dart';
-import '../screens/nutritionist/nutritionist_shell.dart';
-import '../screens/nutritionist/nutritionist_dashboard_screen.dart';
-import '../screens/nutritionist/nutritionist_patients_screen.dart';
-import '../screens/nutritionist/nutritionist_patient_detail_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'models/models.dart';
+import 'services/auth_service.dart';
+import 'screens/shared/login_screen.dart';
+import 'screens/shared/splash_screen.dart';
+import 'screens/trainer/trainer_shell.dart';
+import 'screens/trainer/dashboard_screen.dart';
+import 'screens/trainer/students_screen.dart';
+import 'screens/trainer/student_detail_screen.dart';
+import 'screens/trainer/new_workout_screen.dart';
+import 'screens/trainer/trainer_workout_library_screen.dart';
+import 'screens/trainer/ai_workout_screen.dart';
+import 'screens/trainer/trainer_chat_screen.dart';
+import 'screens/trainer/agenda_screen.dart';
+import 'screens/trainer/wearable_live_screen.dart';
+import 'screens/trainer/financial_screen.dart';
+import 'screens/shared/anamnese_screen.dart';
+import 'screens/shared/notifications_screen.dart';
+import 'screens/shared/profile_screen.dart';
+import 'screens/student/student_shell.dart';
+import 'screens/student/checkin_screen.dart';
+import 'screens/student/today_workout_screen.dart';
+import 'screens/student/exercise_execution_screen.dart';
+import 'screens/student/student_chat_screen.dart';
+import 'screens/student/progress_screen.dart';
+import 'screens/student/community_screen.dart';
+import 'screens/student/measurements_screen.dart';
+import 'screens/student/workout_history_screen.dart';
+import 'screens/nutritionist/nutritionist_shell.dart';
+import 'screens/nutritionist/nutritionist_dashboard_screen.dart';
+import 'screens/nutritionist/nutritionist_patients_screen.dart';
+import 'screens/nutritionist/nutritionist_patient_detail_screen.dart';
 
-// Simula autenticação — substituir por serviço real
-UserRole? _currentRole;
+class _AuthNotifier extends ChangeNotifier {
+  late final StreamSubscription<AuthState> _sub;
+
+  _AuthNotifier() {
+    _sub = Supabase.instance.client.auth.onAuthStateChange
+        .listen((_) => notifyListeners());
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
+  }
+}
+
+final _authNotifier = _AuthNotifier();
 
 final router = GoRouter(
+  refreshListenable: _authNotifier,
   initialLocation: '/splash',
   redirect: (context, state) {
-    final isAuth = _currentRole != null;
+    final isAuth = AuthService.currentSession != null;
     final loc = state.matchedLocation;
     final onAuth = loc == '/login' || loc == '/splash';
     if (!isAuth && !onAuth) return '/login';
     if (isAuth && onAuth) {
-      return switch (_currentRole!) {
+      final role = AuthService.currentRole ?? UserRole.trainer;
+      return switch (role) {
         UserRole.trainer      => '/trainer/dashboard',
         UserRole.student      => '/student/workout',
         UserRole.nutritionist => '/nutritionist/dashboard',
@@ -90,7 +110,7 @@ final router = GoRouter(
       routes: [
         GoRoute(path: '/nutritionist', redirect: (_, __) => '/nutritionist/dashboard'),
         GoRoute(path: '/nutritionist/dashboard', builder: (_, __) => const NutritionistDashboardScreen()),
-        GoRoute(path: '/nutritionist/patients',  builder: (_, __) => const NutritionistPatientsScreen()),
+        GoRoute(path: '/nutritionist/patients', builder: (_, __) => const NutritionistPatientsScreen()),
         GoRoute(
           path: '/nutritionist/patients/:id',
           builder: (_, state) => NutritionistPatientDetailScreen(patientId: state.pathParameters['id']!),
@@ -121,13 +141,9 @@ final router = GoRouter(
         GoRoute(path: '/student/community', builder: (_, __) => const CommunityScreen()),
         GoRoute(path: '/student/measurements', builder: (_, __) => const MeasurementsScreen()),
         GoRoute(path: '/student/workout-history', builder: (_, __) => const WorkoutHistoryScreen()),
-        GoRoute(path: '/student/anamnese', builder: (_, __) => AnamneseScreen(studentId: 'student-1')),
+        GoRoute(path: '/student/anamnese', builder: (_, __) => AnamneseScreen(studentId: AuthService.currentUser?.id ?? '')),
         GoRoute(path: '/student/profile', builder: (_, __) => const ProfileScreen(role: UserRole.student)),
       ],
     ),
   ],
 );
-
-void setCurrentRole(UserRole? role) {
-  _currentRole = role;
-}

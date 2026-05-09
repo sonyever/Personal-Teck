@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'theme/theme.dart';
 import 'router.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AuthService.initialize();
 
   // Força orientação retrato
   await SystemChrome.setPreferredOrientations([
