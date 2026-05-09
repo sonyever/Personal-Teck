@@ -6,191 +6,227 @@ import '../../models/models.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/avatar_circle.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final UserRole role;
   const ProfileScreen({super.key, required this.role});
 
-  String get _name => switch (role) {
-    UserRole.trainer      => 'Carlos Ferreira',
-    UserRole.student      => 'Rafael Alves',
-    UserRole.nutritionist => 'Dra. Ana Souza',
-  };
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
 
-  String get _email => switch (role) {
-    UserRole.trainer      => 'carlos@personalteck.com.br',
-    UserRole.student      => 'rafael@email.com',
-    UserRole.nutritionist => 'ana@nutricao.com.br',
-  };
+class _ProfileScreenState extends State<ProfileScreen> {
+  Map<String, dynamic> _profile = {};
+  bool _loading = true;
 
-  String get _roleLabel => switch (role) {
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final uid = AuthService.currentUser?.id;
+    if (uid == null) { setState(() => _loading = false); return; }
+    try {
+      final data = await supabase.from('profiles').select().eq('id', uid).single();
+      if (mounted) setState(() { _profile = data; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String get _name  => _profile['name']  ?? AuthService.currentName;
+  String get _email => _profile['email'] ?? AuthService.currentUser?.email ?? '';
+  String get _phone => _profile['phone'] ?? '';
+
+  String get _roleLabel => switch (widget.role) {
     UserRole.trainer      => 'Personal Trainer',
     UserRole.student      => 'Aluno',
     UserRole.nutritionist => 'Nutricionista',
   };
 
-  Color get _roleBadgeColor => switch (role) {
-    UserRole.trainer      => PTColors.primary600,
-    UserRole.student      => PTColors.primary600,
-    UserRole.nutritionist => PTColors.teal600,
-  };
+  Color get _badgeColor => widget.role == UserRole.nutritionist ? PTColors.teal600 : PTColors.primary600;
+  Color get _badgeBg    => widget.role == UserRole.nutritionist ? PTColors.teal50  : PTColors.primary50;
 
-  Color get _roleBadgeBg => switch (role) {
-    UserRole.trainer      => PTColors.primary50,
-    UserRole.student      => PTColors.primary50,
-    UserRole.nutritionist => PTColors.teal50,
-  };
+  void _openEdit() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditSheet(
+        profile: _profile,
+        role: widget.role,
+        onSaved: (updated) async {
+          setState(() => _profile = {..._profile, ...updated});
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
-    final isTrainer = role == UserRole.trainer;
-    final isNutritionist = role == UserRole.nutritionist;
-    final isStudent = role == UserRole.student;
+    final isTrainer      = widget.role == UserRole.trainer;
+    final isStudent      = widget.role == UserRole.student;
+    final isNutritionist = widget.role == UserRole.nutritionist;
 
     return Scaffold(
       backgroundColor: PTColors.background,
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
         title: const Text('Perfil'),
+        actions: [
+          TextButton(
+            onPressed: _loading ? null : _openEdit,
+            child: const Text('Editar', style: TextStyle(color: PTColors.primary600, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        child: Column(children: [
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Column(children: [
 
-          // Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
-            color: PTColors.surface,
-            child: Column(children: [
-              Stack(alignment: Alignment.bottomRight, children: [
-                AvatarCircle(name: _name, size: 80, bgColor: PTColors.primary100),
+                // ── Header ────────────────────────────────────────────────
                 Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(color: PTColors.primary600, shape: BoxShape.circle, border: Border.all(color: PTColors.surface, width: 2)),
-                  child: const Icon(Icons.edit, size: 14, color: Colors.white),
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
+                  color: PTColors.surface,
+                  child: Column(children: [
+                    GestureDetector(
+                      onTap: _openEdit,
+                      child: Stack(alignment: Alignment.bottomRight, children: [
+                        AvatarCircle(name: _name, size: 80, bgColor: PTColors.primary100),
+                        Container(
+                          width: 28, height: 28,
+                          decoration: BoxDecoration(
+                            color: PTColors.primary600,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: PTColors.surface, width: 2),
+                          ),
+                          child: const Icon(Icons.edit, size: 14, color: Colors.white),
+                        ),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(_name, style: t.headlineSmall),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(color: _badgeBg, borderRadius: BorderRadius.circular(99)),
+                      child: Text(_roleLabel, style: TextStyle(fontSize: 12, color: _badgeColor, fontWeight: FontWeight.w500)),
+                    ),
+                    if (isNutritionist) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(color: PTColors.amber50, borderRadius: BorderRadius.circular(99)),
+                        child: const Text('Plano Plus', style: TextStyle(fontSize: 11, color: PTColors.amber800, fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(_email, style: t.bodySmall),
+                  ]),
                 ),
-              ]),
-              const SizedBox(height: 12),
-              Text(_name, style: t.headlineSmall),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(color: _roleBadgeBg, borderRadius: BorderRadius.circular(99)),
-                child: Text(_roleLabel, style: TextStyle(fontSize: 12, color: _roleBadgeColor, fontWeight: FontWeight.w500)),
-              ),
-              if (isNutritionist) ...[
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(color: PTColors.amber50, borderRadius: BorderRadius.circular(99)),
-                  child: const Text('Plano Plus', style: TextStyle(fontSize: 11, color: PTColors.amber800, fontWeight: FontWeight.w700)),
-                ),
-              ],
-              const SizedBox(height: 4),
-              Text(_email, style: t.bodySmall),
-            ]),
-          ),
 
-          const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-          // Identificação
-          _Section(title: 'Identificação', items: [
-            _Item(icon: Icons.badge_outlined, label: 'Identificação', value: _name),
-            _Item(icon: Icons.email_outlined, label: 'E-mail', value: _email),
-            _Item(icon: Icons.phone_outlined, label: 'Telefone', value: '(11) 99999-0000'),
-            if (isStudent) ...[
-              _Item(icon: Icons.fingerprint, label: 'CPF', value: '000.000.000-00'),
-              _Item(icon: Icons.cake_outlined, label: 'Data de nascimento', value: '15/03/1996'),
-            ],
-            if (isNutritionist) ...[
-              _Item(icon: Icons.verified_outlined, label: 'CRN', value: '000000-SP'),
-              _Item(icon: Icons.school_outlined, label: 'Especialidade', value: 'Nutrição Esportiva'),
-            ],
-          ]),
+                // ── Identificação ─────────────────────────────────────────
+                _Section(title: 'Identificação', items: [
+                  _Item(icon: Icons.badge_outlined,  label: 'Nome',     value: _name),
+                  _Item(icon: Icons.email_outlined,  label: 'E-mail',   value: _email),
+                  _Item(icon: Icons.phone_outlined,  label: 'Telefone', value: _phone.isEmpty ? '—' : _phone),
+                  if (isStudent) ...[
+                    _Item(icon: Icons.fingerprint,      label: 'CPF',               value: _fmt(_profile['cpf'])),
+                    _Item(icon: Icons.cake_outlined,    label: 'Data de nascimento', value: _fmt(_profile['birth_date'])),
+                  ],
+                  if (isNutritionist) ...[
+                    _Item(icon: Icons.verified_outlined, label: 'CRN',         value: _fmt(_profile['crn'])),
+                    _Item(icon: Icons.school_outlined,   label: 'Especialidade', value: _fmt(_profile['specialty'])),
+                  ],
+                ]),
 
-          if (isStudent) ...[
-            const SizedBox(height: 8),
-            _Section(title: 'Meu programa', items: [
-              _Item(icon: Icons.fitness_center_outlined, label: 'Treinador', value: 'Carlos Ferreira'),
-              _Item(icon: Icons.flag_outlined, label: 'Objetivo', value: 'Hipertrofia'),
-              _Item(icon: Icons.bar_chart_outlined, label: 'Nível', value: 'Intermediário'),
-              _Item(
-                icon: Icons.assignment_outlined,
-                label: 'Anamnese',
-                value: 'Visualizar',
-                onTap: () => context.push('/student/anamnese'),
-              ),
-            ]),
-          ],
+                if (isStudent) ...[
+                  const SizedBox(height: 8),
+                  _Section(title: 'Meu programa', items: [
+                    _Item(icon: Icons.flag_outlined,       label: 'Objetivo', value: '—'),
+                    _Item(icon: Icons.bar_chart_outlined,  label: 'Nível',    value: '—'),
+                    _Item(
+                      icon: Icons.assignment_outlined,
+                      label: 'Anamnese',
+                      value: 'Visualizar',
+                      onTap: () => context.push('/student/anamnese'),
+                    ),
+                  ]),
+                ],
 
-          if (isTrainer) ...[
-            const SizedBox(height: 8),
-            _Section(title: 'Meu negócio', items: [
-              _Item(icon: Icons.people_outline, label: 'Alunos ativos', value: '24'),
-              _Item(icon: Icons.star_outline, label: 'CREF', value: '000000-G/SP'),
-              _Item(icon: Icons.location_on_outlined, label: 'Academia', value: 'Academia Central'),
-            ]),
-          ],
+                if (isTrainer) ...[
+                  const SizedBox(height: 8),
+                  _Section(title: 'Meu negócio', items: [
+                    _Item(icon: Icons.people_outline,    label: 'Alunos ativos', value: '—'),
+                    _Item(icon: Icons.star_outline,       label: 'CREF',          value: _fmt(_profile['cref'])),
+                    _Item(icon: Icons.location_on_outlined, label: 'Academia',   value: _fmt(_profile['academy'])),
+                  ]),
+                ],
 
-          if (isNutritionist) ...[
-            const SizedBox(height: 8),
-            _Section(title: 'Minha atuação', items: [
-              _Item(icon: Icons.people_outline, label: 'Pacientes ativos', value: '8'),
-              _Item(icon: Icons.workspace_premium_outlined, label: 'Plano', value: 'Plus — parceria ativa'),
-              _Item(icon: Icons.business_outlined, label: 'Clínica', value: 'NutriSport SP'),
-            ]),
-          ],
+                if (isNutritionist) ...[
+                  const SizedBox(height: 8),
+                  _Section(title: 'Minha atuação', items: [
+                    _Item(icon: Icons.people_outline,           label: 'Pacientes ativos', value: '—'),
+                    _Item(icon: Icons.business_outlined,        label: 'Clínica',          value: _fmt(_profile['clinic'])),
+                  ]),
+                ],
 
-          const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-          _Section(title: 'Preferências', items: [
-            _Item(icon: Icons.notifications_outlined, label: 'Notificações', value: 'Ativado', onTap: () => context.push('/notifications')),
-            _Item(icon: Icons.lock_outline, label: 'Segurança', value: 'Alterar senha', onTap: () {}),
-            _Item(icon: Icons.privacy_tip_outlined, label: 'Privacidade', value: '', onTap: () {}),
-          ]),
+                _Section(title: 'Preferências', items: [
+                  _Item(icon: Icons.notifications_outlined, label: 'Notificações', value: 'Ativado', onTap: () => context.push('/notifications')),
+                  _Item(icon: Icons.lock_outline,           label: 'Segurança',    value: 'Alterar senha', onTap: () => _changePassword(context)),
+                ]),
 
-          const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-          // Logout
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _confirmLogout(context),
-                icon: const Icon(Icons.logout, color: PTColors.red400, size: 18),
-                label: const Text('Sair da conta', style: TextStyle(color: PTColors.red400)),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: PTColors.red200),
-                  foregroundColor: PTColors.red400,
-                ),
-              ),
-            ),
-          ),
-
-          // Encerrar conta (apenas aluno)
-          if (isStudent) ...[
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => _confirmDeleteAccount(context),
-                  child: const Text(
-                    'Encerrar minha conta',
-                    style: TextStyle(fontSize: 13, color: PTColors.gray400, decoration: TextDecoration.underline),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _confirmLogout(context),
+                      icon: const Icon(Icons.logout, color: PTColors.red400, size: 18),
+                      label: const Text('Sair da conta', style: TextStyle(color: PTColors.red400)),
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: PTColors.red200), foregroundColor: PTColors.red400),
+                    ),
                   ),
                 ),
-              ),
-            ),
-          ],
 
-          const SizedBox(height: 16),
-          Text('Personal Teck v1.0.0', style: t.bodySmall?.copyWith(color: PTColors.gray200)),
-          const SizedBox(height: 32),
-        ]),
-      ),
+                if (isStudent) ...[
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => _confirmDeleteAccount(context),
+                        child: const Text('Encerrar minha conta', style: TextStyle(fontSize: 13, color: PTColors.gray400, decoration: TextDecoration.underline)),
+                      ),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 16),
+                Text('Personal Teck v1.0.0', style: t.bodySmall?.copyWith(color: PTColors.gray200)),
+                const SizedBox(height: 32),
+              ]),
+            ),
+    );
+  }
+
+  String _fmt(dynamic v) => (v == null || v.toString().isEmpty) ? '—' : v.toString();
+
+  void _changePassword(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => const _ChangePasswordDialog(),
     );
   }
 
@@ -204,10 +240,7 @@ class ProfileScreen extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: PTColors.red400),
-            onPressed: () {
-              Navigator.pop(context);
-              AuthService.signOut();
-            },
+            onPressed: () { Navigator.pop(context); AuthService.signOut(); },
             child: const Text('Sair', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -220,172 +253,264 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Encerrar conta?'),
-        content: const Text(
-          'Seu histórico completo será enviado para o seu e-mail antes do encerramento.\n\n'
-          'Após confirmado, sua conta será encerrada e o acesso removido.',
-        ),
+        content: const Text('Sua conta será encerrada e o acesso removido.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: PTColors.red600),
-            onPressed: () {
-              Navigator.pop(context);
-              _sendAccountReport(context);
-            },
-            child: const Text('Encerrar e enviar relatório', style: TextStyle(color: Colors.white)),
+            onPressed: () { Navigator.pop(context); _deleteAccount(context); },
+            child: const Text('Encerrar conta', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _sendAccountReport(BuildContext context) async {
-    final now = DateTime.now();
-    final report = _buildAccountReport(now);
-
-    final uri = Uri(
-      scheme: 'mailto',
-      path: 'rafael@email.com',
-      queryParameters: {
-        'subject': '[Personal Teck] Relatório de encerramento de conta — Rafael Alves',
-        'body': report,
-      },
-    );
-
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Relatório gerado. Verifique seu cliente de e-mail.'),
-          backgroundColor: PTColors.teal600,
-        ),
-      );
-      AuthService.signOut();
-    }
-  }
-
-  String _buildAccountReport(DateTime now) {
-    final date = '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
-    final time = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-
-    return '''
-RELATÓRIO DE ENCERRAMENTO DE CONTA — PERSONAL TECK
-Gerado em: $date às $time
-================================================================
-
-IDENTIFICAÇÃO
-  Nome: Rafael Alves
-  CPF: 000.000.000-00
-  Data de nascimento: 15/03/1996
-  E-mail: rafael@email.com
-  Telefone: (11) 99999-0000
-  Data de cadastro: 01/01/2025
-
-----------------------------------------------------------------
-PROGRAMA
-  Treinador: Carlos Ferreira (CREF 000000-G/SP)
-  Objetivo: Hipertrofia
-  Nível: Intermediário
-  Status do pagamento: Em dia
-
-----------------------------------------------------------------
-HISTÓRICO DE TREINOS
-  Total de treinos realizados: 47
-  Último treino: 08/05/2026
-  Frequência média: 3,8x por semana
-
-  Treino A — Peito/Tríceps (última realização: 06/05/2026)
-    Supino reto:          4 séries x 10 reps — 80 kg
-    Supino inclinado:     3 séries x 12 reps — 60 kg
-    Crossover:            3 séries x 15 reps — 20 kg
-    Tríceps pulley:       4 séries x 12 reps — 35 kg
-
-  Treino B — Costas/Bíceps (última realização: 07/05/2026)
-    Puxada frontal:       4 séries x 10 reps — 70 kg
-    Remada cavalinho:     3 séries x 12 reps — 80 kg
-    Barra fixa:           3 séries x 8 reps — corporal
-    Rosca direta:         3 séries x 12 reps — 30 kg
-
-  Treino C — Pernas (última realização: 08/05/2026)
-    Agachamento livre:    4 séries x 10 reps — 100 kg
-    Leg press 45:         3 séries x 15 reps — 200 kg
-    Cadeira extensora:    3 séries x 15 reps — 60 kg
-    Stiff:                3 séries x 12 reps — 70 kg
-
-----------------------------------------------------------------
-MEDIDAS CORPORAIS
-  Data da última avaliação: 01/05/2026
-  Peso: 82,0 kg
-  Altura: 178 cm
-  IMC: 25,9
-  % Gordura: 14,2%
-  Massa magra: 70,3 kg
-  Circunferência abdominal: 84 cm
-  Circunferência de braço (D): 37 cm
-  Circunferência de coxa (D): 60 cm
-
-----------------------------------------------------------------
-ANAMNESE
-  Sexo biológico: Masculino
-  Profissão: Engenheiro
-  Contato de emergência: Maria Alves — (11) 98888-0001
-
-  Saúde:
-    Condições médicas: Nenhuma
-    Medicamentos: Nenhum
-    Cirurgias recentes: Não
-
-  PAR-Q: Todas as respostas negativas
-
-  Estilo de vida:
-    Sono: 7 horas/noite
-    Estresse: Moderado
-    Tabagismo: Nunca
-    Álcool: 1 dia/semana
-    Tipo de trabalho: Sedentário
-
-  Histórico físico:
-    Experiência prévia: Sim — 3 anos
-    Atividades: Musculação, Funcional
-    Lesões: Dor lombar leve
-
-  Objetivos:
-    Principal: Hipertrofia
-    Prazo: 6 meses
-    Dias disponíveis: Seg, Ter, Qui, Sex, Sáb
-
-  Nutrição:
-    Consumo de água: 8 copos/dia
-    Refeições/dia: 4
-    Tipo de dieta: Onívoro
-    Restrições: Nenhuma
-    Suplementos: Whey protein, Creatina
-
-----------------------------------------------------------------
-CHECK-INS REGISTRADOS
-  Total: 44 check-ins
-  Nível de energia mais frequente: Bem
-  Desconfortos relatados: Lombar (3x), Joelho (1x)
-
-----------------------------------------------------------------
-EVOLUÇÃO REGISTRADA
-  Peso inicial: 79,5 kg → atual: 82,0 kg (+2,5 kg)
-  % Gordura inicial: 16,1% → atual: 14,2% (-1,9%)
-  Supino reto PR: 60 kg → 80 kg (+20 kg)
-  Agachamento PR: 80 kg → 100 kg (+20 kg)
-
-================================================================
-Este relatório foi gerado automaticamente pelo Personal Teck
-em atendimento à solicitação de encerramento de conta.
-O histórico físico do usuário é de sua propriedade e pode ser
-requisitado a qualquer momento, inclusive por ordem judicial.
-================================================================
-''';
+  Future<void> _deleteAccount(BuildContext context) async {
+    AuthService.signOut();
   }
 }
+
+// ── Bottom sheet de edição ────────────────────────────────────────────────────
+
+class _EditSheet extends StatefulWidget {
+  final Map<String, dynamic> profile;
+  final UserRole role;
+  final void Function(Map<String, dynamic>) onSaved;
+  const _EditSheet({required this.profile, required this.role, required this.onSaved});
+
+  @override
+  State<_EditSheet> createState() => _EditSheetState();
+}
+
+class _EditSheetState extends State<_EditSheet> {
+  late final TextEditingController _name;
+  late final TextEditingController _phone;
+  late final TextEditingController _cpf;
+  late final TextEditingController _birthDate;
+  late final TextEditingController _cref;
+  late final TextEditingController _crn;
+  late final TextEditingController _specialty;
+  late final TextEditingController _academy;
+  late final TextEditingController _clinic;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _name      = TextEditingController(text: widget.profile['name'] ?? AuthService.currentName);
+    _phone     = TextEditingController(text: widget.profile['phone'] ?? '');
+    _cpf       = TextEditingController(text: widget.profile['cpf'] ?? '');
+    _birthDate = TextEditingController(text: widget.profile['birth_date'] ?? '');
+    _cref      = TextEditingController(text: widget.profile['cref'] ?? '');
+    _crn       = TextEditingController(text: widget.profile['crn'] ?? '');
+    _specialty = TextEditingController(text: widget.profile['specialty'] ?? '');
+    _academy   = TextEditingController(text: widget.profile['academy'] ?? '');
+    _clinic    = TextEditingController(text: widget.profile['clinic'] ?? '');
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_name, _phone, _cpf, _birthDate, _cref, _crn, _specialty, _academy, _clinic]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final uid = AuthService.currentUser?.id;
+    if (uid == null) return;
+    setState(() => _saving = true);
+
+    final updated = {
+      'name':       _name.text.trim(),
+      'phone':      _phone.text.trim(),
+      'cpf':        _cpf.text.trim(),
+      'birth_date': _birthDate.text.trim(),
+      'cref':       _cref.text.trim(),
+      'crn':        _crn.text.trim(),
+      'specialty':  _specialty.text.trim(),
+      'academy':    _academy.text.trim(),
+      'clinic':     _clinic.text.trim(),
+    };
+
+    try {
+      await supabase.from('profiles').update(updated).eq('id', uid);
+      // Atualiza também o nome nos metadados do Auth
+      if (_name.text.trim() != (widget.profile['name'] ?? '')) {
+        await supabase.auth.updateUser(UserAttributes(data: {'name': _name.text.trim()}));
+      }
+      widget.onSaved(updated);
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro ao salvar. Tente novamente.'), backgroundColor: PTColors.red600),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+    final isStudent      = widget.role == UserRole.student;
+    final isTrainer      = widget.role == UserRole.trainer;
+    final isNutritionist = widget.role == UserRole.nutritionist;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: PTColors.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.90),
+      child: Column(
+        children: [
+          // Handle + título
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
+            child: Row(children: [
+              Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: PTColors.gray100, borderRadius: BorderRadius.circular(99)))),
+              const Spacer(),
+              const Text('Editar perfil', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: PTColors.gray900)),
+              const Spacer(),
+              IconButton(icon: const Icon(Icons.close, color: PTColors.gray400), onPressed: () => Navigator.pop(context)),
+            ]),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPad + 16),
+              child: Column(children: [
+
+                _EditField(controller: _name,  label: 'Nome completo',  icon: Icons.person_outline),
+                const SizedBox(height: 12),
+                _EditField(controller: _phone, label: 'Telefone',       icon: Icons.phone_outlined, keyboard: TextInputType.phone),
+
+                if (isStudent) ...[
+                  const SizedBox(height: 12),
+                  _EditField(controller: _cpf,       label: 'CPF',               icon: Icons.fingerprint, keyboard: TextInputType.number),
+                  const SizedBox(height: 12),
+                  _EditField(controller: _birthDate, label: 'Data de nascimento (DD/MM/AAAA)', icon: Icons.cake_outlined),
+                ],
+
+                if (isTrainer) ...[
+                  const SizedBox(height: 12),
+                  _EditField(controller: _cref,    label: 'CREF',    icon: Icons.star_outline),
+                  const SizedBox(height: 12),
+                  _EditField(controller: _academy, label: 'Academia', icon: Icons.location_on_outlined),
+                ],
+
+                if (isNutritionist) ...[
+                  const SizedBox(height: 12),
+                  _EditField(controller: _crn,       label: 'CRN',          icon: Icons.verified_outlined),
+                  const SizedBox(height: 12),
+                  _EditField(controller: _specialty, label: 'Especialidade', icon: Icons.school_outlined),
+                  const SizedBox(height: 12),
+                  _EditField(controller: _clinic,    label: 'Clínica',       icon: Icons.business_outlined),
+                ],
+
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Salvar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final TextInputType keyboard;
+  const _EditField({required this.controller, required this.label, required this.icon, this.keyboard = TextInputType.text});
+
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: controller,
+    keyboardType: keyboard,
+    style: const TextStyle(fontSize: 15, color: PTColors.gray900),
+    decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20, color: PTColors.gray400)),
+  );
+}
+
+// ── Dialog de alteração de senha ──────────────────────────────────────────────
+
+class _ChangePasswordDialog extends StatefulWidget {
+  const _ChangePasswordDialog();
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  final _ctrl = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  Future<void> _save() async {
+    if (_ctrl.text.length < 6) {
+      setState(() => _error = 'Mínimo 6 caracteres.');
+      return;
+    }
+    setState(() { _saving = true; _error = null; });
+    try {
+      await supabase.auth.updateUser(UserAttributes(password: _ctrl.text));
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Senha alterada com sucesso.'), backgroundColor: PTColors.primary600),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Erro ao alterar senha.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Nova senha'),
+    content: Column(mainAxisSize: MainAxisSize.min, children: [
+      TextField(
+        controller: _ctrl,
+        obscureText: true,
+        decoration: const InputDecoration(labelText: 'Nova senha', prefixIcon: Icon(Icons.lock_outline)),
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: 8),
+        Text(_error!, style: const TextStyle(fontSize: 12, color: PTColors.red600)),
+      ],
+    ]),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+      ElevatedButton(
+        onPressed: _saving ? null : _save,
+        child: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Salvar'),
+      ),
+    ],
+  );
+}
+
+// ── Widgets de layout ─────────────────────────────────────────────────────────
 
 class _Section extends StatelessWidget {
   final String title;
@@ -393,40 +518,45 @@ class _Section extends StatelessWidget {
   const _Section({required this.title, required this.items});
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
-      child: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: PTColors.gray400, letterSpacing: 0.5)),
-    ),
-    Container(
-      color: PTColors.surface,
-      child: Column(children: items.asMap().entries.map((e) {
-        final item = e.value;
-        final isLast = e.key == items.length - 1;
-        return Column(children: [
-          GestureDetector(
-            onTap: item.onTap,
-            child: Container(
-              color: Colors.transparent,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(children: [
-                Icon(item.icon, size: 20, color: PTColors.gray400),
-                const SizedBox(width: 12),
-                Expanded(child: Text(item.label, style: const TextStyle(fontSize: 14, color: PTColors.gray900))),
-                if (item.value.isNotEmpty)
-                  Text(item.value, style: const TextStyle(fontSize: 13, color: PTColors.gray400)),
-                if (item.onTap != null) ...[
-                  const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right, size: 16, color: PTColors.gray200),
-                ],
-              ]),
-            ),
-          ),
-          if (!isLast) const Divider(indent: 48, height: 1),
-        ]);
-      }).toList()),
-    ),
-  ]);
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+        child: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: PTColors.gray400, letterSpacing: 0.5)),
+      ),
+      Container(
+        color: PTColors.surface,
+        child: Column(
+          children: items.asMap().entries.map((e) {
+            final item = e.value;
+            final isLast = e.key == items.length - 1;
+            return Column(children: [
+              GestureDetector(
+                onTap: item.onTap,
+                child: Container(
+                  color: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(children: [
+                    Icon(item.icon, size: 20, color: PTColors.gray400),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(item.label, style: const TextStyle(fontSize: 14, color: PTColors.gray900))),
+                    if (item.value.isNotEmpty)
+                      Text(item.value, style: const TextStyle(fontSize: 13, color: PTColors.gray400)),
+                    if (item.onTap != null) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right, size: 16, color: PTColors.gray200),
+                    ],
+                  ]),
+                ),
+              ),
+              if (!isLast) const Divider(indent: 48, height: 1),
+            ]);
+          }).toList(),
+        ),
+      ),
+    ],
+  );
 }
 
 class _Item {
