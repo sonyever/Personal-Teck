@@ -5,6 +5,7 @@ import '../../models/models.dart';
 import '../../widgets/pt_card.dart';
 import '../../widgets/stat_box.dart';
 import '../../widgets/avatar_circle.dart';
+import '../../services/auth_service.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -41,7 +42,7 @@ class DashboardScreen extends StatelessWidget {
               title: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Olá, Carlos', style: t.headlineMedium),
+                  Text('Olá, ${AuthService.currentName}', style: t.headlineMedium),
                   Text(_formattedDate(), style: t.bodySmall),
                 ],
               ),

@@ -4,6 +4,7 @@ import '../../theme/theme.dart';
 import '../../widgets/pt_card.dart';
 import '../../widgets/avatar_circle.dart';
 import '../../widgets/stat_box.dart';
+import '../../services/auth_service.dart';
 
 class NutritionistDashboardScreen extends StatelessWidget {
   const NutritionistDashboardScreen({super.key});
@@ -22,7 +23,7 @@ class NutritionistDashboardScreen extends StatelessWidget {
               backgroundColor: PTColors.background,
               surfaceTintColor: Colors.transparent,
               title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Olá, Dra. Ana', style: t.headlineMedium),
+                Text('Olá, ${AuthService.currentName}', style: t.headlineMedium),
                 Text(_formattedDate(), style: t.bodySmall),
               ]),
               actions: [
