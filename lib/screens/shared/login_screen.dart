@@ -49,11 +49,26 @@ class _LoginScreenState extends State<LoginScreen> {
         await AuthService.signIn(email: email, password: pass);
       } else {
         await AuthService.signUp(email: email, password: pass, name: name, role: _selectedRole);
+        // Se não redirecionou, confirmação de email está ativa
+        if (mounted && AuthService.currentSession == null) {
+          setState(() {
+            _loading = false;
+            _error = null;
+            _isLogin = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Conta criada! Verifique seu email para confirmar o cadastro.'),
+              backgroundColor: Color(0xFF2E7D52),
+              duration: Duration(seconds: 5),
+            ),
+          );
+          return;
+        }
       }
-      // Router redireciona automaticamente via onAuthStateChange
     } on AuthException catch (e) {
       if (mounted) setState(() => _error = _translate(e.message));
-    } catch (_) {
+    } catch (e) {
       if (mounted) setState(() => _error = 'Erro inesperado. Tente novamente.');
     } finally {
       if (mounted) setState(() => _loading = false);

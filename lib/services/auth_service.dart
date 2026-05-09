@@ -24,13 +24,17 @@ class AuthService {
       password: password,
       data: {'name': name, 'role': role.name},
     );
-    if (res.user != null) {
-      await supabase.from('profiles').upsert({
-        'id': res.user!.id,
-        'name': name,
-        'email': email,
-        'role': role.name,
-      });
+    // Upsert só quando há sessão ativa (confirmação de email desativada).
+    // Se confirmação estiver ativa, o trigger do banco cria o profile.
+    if (res.user != null && res.session != null) {
+      try {
+        await supabase.from('profiles').upsert({
+          'id': res.user!.id,
+          'name': name,
+          'email': email,
+          'role': role.name,
+        });
+      } catch (_) {}
     }
   }
 
