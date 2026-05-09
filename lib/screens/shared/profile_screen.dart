@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/theme.dart';
 import '../../models/models.dart';
-import '../../router.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/avatar_circle.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -206,8 +206,7 @@ class ProfileScreen extends StatelessWidget {
             style: ElevatedButton.styleFrom(backgroundColor: PTColors.red400),
             onPressed: () {
               Navigator.pop(context);
-              setCurrentRole(null);
-              context.go('/login');
+              AuthService.signOut();
             },
             child: const Text('Sair', style: TextStyle(color: Colors.white)),
           ),
@@ -264,8 +263,7 @@ class ProfileScreen extends StatelessWidget {
           backgroundColor: PTColors.teal600,
         ),
       );
-      setCurrentRole(null);
-      context.go('/login');
+      AuthService.signOut();
     }
   }
 
